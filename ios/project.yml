@@ -49,5 +49,5 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.phonemirror.app.broadcast
-        SWIFT_OBJC_BRIDGING_HEADER: Broadcast-Bridging-Header.h
+        SWIFT_OBJC_BRIDGING_HEADER: "$(SRCROOT)/Broadcast/Broadcast-Bridging-Header.h"
         HEADER_SEARCH_PATHS: ["$(SRCROOT)/Broadcast"]
