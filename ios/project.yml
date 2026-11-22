@@ -2,7 +2,7 @@ name: PhoneMirror
 options:
   bundleIdPrefix: com.phonemirror
   deploymentTarget:
-    iOS: "15.0"
+    iOS: "16.0"
 settings:
   base:
     SWIFT_VERSION: "5.0"
