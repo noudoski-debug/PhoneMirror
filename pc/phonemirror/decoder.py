@@ -5,8 +5,9 @@ class H264Decoder:
     def __init__(self):
         import av  # noqa: PLC0415
         self._ctx = av.CodecContext.create("h264", "r")
-        self._ctx.options = {"flags": "low_delay", "flags2": "fast"}
+        self._ctx.options = {"flags": "low_delay", "flags2": "fast", "zerolatency": "1"}
         self._ctx.thread_type = "SLICE"
+        self._ctx.thread_count = 2
 
     def decode(self, data):
         """Feed one access unit (Annex B); return a list of RGB uint8 arrays (H x W x 3)."""

@@ -71,6 +71,10 @@ class Session:
                 self._stop.wait(self._retry_delay)
                 continue
             self._sock = sock
+            try:
+                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            except OSError:
+                pass
             self._on_status("connected, waiting for video (start the broadcast on the phone)")
             try:
                 self._receive_loop(sock)

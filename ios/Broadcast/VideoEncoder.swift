@@ -7,7 +7,7 @@ import VideoToolbox
 final class VideoEncoder {
     var onFrame: ((Data, Bool, UInt8) -> Void)?
 
-    private let maxLongSide = 1280
+    private let maxLongSide = 960
     private var session: VTCompressionSession?
     private var transfer: VTPixelTransferSession?
     private var pool: CVPixelBufferPool?

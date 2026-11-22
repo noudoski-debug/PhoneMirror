@@ -208,7 +208,7 @@ def run(args):
             for i, text in enumerate(lines):
                 screen.blit(font.render(text, True, (200, 200, 200), (0, 0, 0)), (6, 6 + i * 20))
             pygame.display.flip()
-            clock.tick(60)
+            clock.tick(120)
     finally:
         mapper.release_all()
         session.stop()

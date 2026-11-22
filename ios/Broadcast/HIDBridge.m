@@ -1,13 +1,13 @@
 #import "HIDBridge.h"
 #import <dlfcn.h>
 #import <mach/mach_time.h>
+#import <UIKit/UIKit.h>
 
 typedef void *IOHIDEventRef;
 typedef void *IOHIDEventSystemClientRef;
 
 typedef IOHIDEventSystemClientRef (*ClientCreateFn)(CFAllocatorRef);
 typedef void (*ClientDispatchFn)(IOHIDEventSystemClientRef, IOHIDEventRef);
-// IOHIDFloat is double on 64-bit (matches the private IOKit headers).
 typedef double IOHIDFloat;
 typedef IOHIDEventRef (*CreateDigitizerEventFn)(CFAllocatorRef, uint64_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t,
                                                 IOHIDFloat, IOHIDFloat, IOHIDFloat, IOHIDFloat, IOHIDFloat, Boolean, Boolean, uint32_t);
@@ -27,7 +27,6 @@ static SetSenderFn pSetSender;
 static IOHIDEventSystemClientRef gClient;
 static BOOL gAvailable;
 
-// IOHIDEventTypes.h values
 static const uint32_t kTransducerHand = 3;
 static const uint32_t kEventRange = 1u << 0;
 static const uint32_t kEventTouch = 1u << 1;
@@ -37,39 +36,57 @@ static const uint64_t kSenderID = 0xDEFACEDBEEFFECE5ULL;
 
 @implementation HIDBridge
 
-+ (void)load {
++ (void)ensureInitialized {
+    if (gAvailable && gClient) return;
+
     void *iokit = dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_NOW);
     if (!iokit) return;
-    pClientCreate = dlsym(iokit, "IOHIDEventSystemClientCreate");
-    pDispatch = dlsym(iokit, "IOHIDEventSystemClientDispatchEvent");
-    pCreateDigitizer = dlsym(iokit, "IOHIDEventCreateDigitizerEvent");
-    pCreateFinger = dlsym(iokit, "IOHIDEventCreateDigitizerFingerEvent");
-    pAppend = dlsym(iokit, "IOHIDEventAppendEvent");
-    pSetInt = dlsym(iokit, "IOHIDEventSetIntegerValue");
-    pSetSender = dlsym(iokit, "IOHIDEventSetSenderID");
-    if (!(pClientCreate && pDispatch && pCreateDigitizer && pCreateFinger && pAppend && pSetInt && pSetSender)) return;
-    gClient = pClientCreate(kCFAllocatorDefault);
-    gAvailable = (gClient != NULL);
+
+    pClientCreate = (ClientCreateFn)dlsym(iokit, "IOHIDEventSystemClientCreate");
+    pDispatch = (ClientDispatchFn)dlsym(iokit, "IOHIDEventSystemClientDispatchEvent");
+    pCreateDigitizer = (CreateDigitizerEventFn)dlsym(iokit, "IOHIDEventCreateDigitizerEvent");
+    pCreateFinger = (CreateFingerEventFn)dlsym(iokit, "IOHIDEventCreateDigitizerFingerEvent");
+    pAppend = (AppendEventFn)dlsym(iokit, "IOHIDEventAppendEvent");
+    pSetInt = (SetIntFn)dlsym(iokit, "IOHIDEventSetIntegerValue");
+    pSetSender = (SetSenderFn)dlsym(iokit, "IOHIDEventSetSenderID");
+
+    if (pClientCreate && pDispatch && pCreateDigitizer && pCreateFinger && pAppend && pSetInt && pSetSender) {
+        gClient = pClientCreate(kCFAllocatorDefault);
+        gAvailable = (gClient != NULL);
+    }
 }
 
-+ (BOOL)isAvailable { return gAvailable; }
++ (BOOL)isAvailable {
+    [self ensureInitialized];
+    return gAvailable;
+}
 
 + (void)sendTouches:(NSArray<NSDictionary *> *)touches isMove:(BOOL)isMove {
-    if (!gAvailable || touches.count == 0) return;
+    [self ensureInitialized];
+    if (!gAvailable || !gClient || touches.count == 0) return;
+
     uint64_t now = mach_absolute_time();
     BOOL anyDown = NO;
-    for (NSDictionary *t in touches) anyDown |= [t[@"down"] boolValue];
+    for (NSDictionary *t in touches) {
+        if ([t[@"down"] boolValue]) {
+            anyDown = YES;
+            break;
+        }
+    }
+
     uint32_t mask = isMove ? kEventPosition : (kEventRange | kEventTouch);
 
     IOHIDEventRef parent = pCreateDigitizer(kCFAllocatorDefault, now, kTransducerHand, 0, 0, mask, 0,
                                             0, 0, 0, 0, 0, anyDown, anyDown, 0);
     if (!parent) return;
     pSetInt(parent, kFieldIsDisplayIntegrated, 1);
+
     for (NSDictionary *t in touches) {
         BOOL down = [t[@"down"] boolValue];
         float x = fminf(1.f, fmaxf(0.f, [t[@"x"] floatValue]));
         float y = fminf(1.f, fmaxf(0.f, [t[@"y"] floatValue]));
         uint32_t ident = [t[@"id"] unsignedIntValue] + 2;
+
         IOHIDEventRef finger = pCreateFinger(kCFAllocatorDefault, now, ident, ident, mask,
                                              (IOHIDFloat)x, (IOHIDFloat)y, 0, down ? 1.0 : 0.0, 0, down, down, 0);
         if (!finger) continue;
@@ -77,6 +94,7 @@ static const uint64_t kSenderID = 0xDEFACEDBEEFFECE5ULL;
         pAppend(parent, finger, 0);
         CFRelease(finger);
     }
+
     pSetSender(parent, kSenderID);
     pDispatch(gClient, parent);
     CFRelease(parent);
