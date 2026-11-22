@@ -1,0 +1,32 @@
+name: Build Windows app
+
+on:
+  push:
+    paths: ["pc/**", ".github/workflows/build-windows.yml"]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install numpy
+      - run: cd pc && python -m unittest discover -s tests -v
+
+  build:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r pc/requirements.txt pyinstaller
+      - name: Build exe
+        working-directory: pc
+        run: pyinstaller --onefile --name PhoneMirror --collect-all av run.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PhoneMirror-windows
+          path: pc/dist/PhoneMirror.exe
