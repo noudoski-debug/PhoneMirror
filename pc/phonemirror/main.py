@@ -7,7 +7,7 @@ from . import geometry, mapping
 from . import protocol as P
 from .session import Session, usb_connect_fn
 
-HELP = "F1 edit  F2 stick  F3 overlay  F5 save  F6 rotate  F7 resync"
+HELP = "F1 edit  F2 stick  F3 overlay  F4 look-center  F5 save  F6 rotate  F7 resync  ` / Ctrl mouse-lock"
 _FUNCTION_KEYS = {"f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "escape"}
 
 
@@ -21,6 +21,8 @@ class State:
         self.profile = mapping.load_profile(profile_name)
         self.edit = False
         self.stick_mode = False
+        self.look_mode = False
+        self.mouse_locked = False
         self.show_overlay = False
         self.pending = None          # (x, y) waiting for a key press in edit mode
         self.message = ""
@@ -90,7 +92,20 @@ def run(args):
                         mapper.release_all()
                         state.edit, state.pending, state.stick_mode = not state.edit, None, False
                     elif name == "f2" and state.edit:
-                        state.stick_mode, state.pending = True, None
+                        state.stick_mode, state.pending, state.look_mode = True, None, False
+                    elif name == "f4" and state.edit:
+                        state.look_mode, state.pending, state.stick_mode = True, None, False
+                    elif name in ("`", "left ctrl", "right ctrl") and not state.edit:
+                        state.mouse_locked = not state.mouse_locked
+                        pygame.event.set_grab(state.mouse_locked)
+                        pygame.mouse.set_visible(not state.mouse_locked)
+                        if state.mouse_locked:
+                            cl = state.profile.get("center_look", {"x": 0.65, "y": 0.50})
+                            mapper.look_down(cl.get("x", 0.65), cl.get("y", 0.50))
+                            state.message = "Mouse Locked (Camera Look)"
+                        else:
+                            mapper.look_up()
+                            state.message = "Mouse Unlocked"
                     elif name == "f3":
                         state.show_overlay = not state.show_overlay
                     elif name == "f5":
@@ -121,6 +136,10 @@ def run(args):
                             add_binding({"type": "stick", "x": p[0], "y": p[1], "radius": 0.10,
                                          "keys": {"up": "w", "left": "a", "down": "s", "right": "d"}})
                             state.stick_mode = False
+                        elif state.look_mode:
+                            state.profile["center_look"] = {"enabled": True, "x": p[0], "y": p[1]}
+                            state.look_mode = False
+                            state.message = f"Set Camera Look Center: {p[0]:.2f}, {p[1]:.2f}"
                         else:
                             state.pending = p
                     elif state.edit and e.button == 3 and state.profile["bindings"]:
@@ -130,9 +149,15 @@ def run(args):
                     elif not state.edit and e.button == 1:
                         mapper.mouse_down(*p)
                 elif e.type == pygame.MOUSEMOTION and not state.edit:
-                    p = to_portrait(e.pos)
-                    if p is not None:
-                        mapper.mouse_move(*p)
+                    if state.mouse_locked:
+                        dx, dy = e.rel
+                        sens = state.profile.get("sensitivity", 1.0) * 0.0015
+                        cl = state.profile.get("center_look", {"x": 0.65, "y": 0.50})
+                        mapper.look_delta(dx * sens, dy * sens, cl.get("x", 0.65), cl.get("y", 0.50))
+                    else:
+                        p = to_portrait(e.pos)
+                        if p is not None:
+                            mapper.mouse_move(*p)
                 elif e.type == pygame.MOUSEBUTTONUP and e.button == 1:
                     mapper.mouse_up()
 

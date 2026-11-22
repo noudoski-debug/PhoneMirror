@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .protocol import TOUCH_DOWN, TOUCH_MOVE, TOUCH_UP
 
+LOOK_FINGER = 30
 MOUSE_FINGER = 31
 DEFAULT_FRAME_SIZE = (1125, 2436)  # iPhone X portrait pixels, used until the first frame arrives
 _DIRS = ("up", "left", "down", "right")
@@ -16,6 +17,8 @@ def default_profile():
     return {
         "name": "default",
         "rotation_offset": 0,
+        "sensitivity": 1.0,
+        "center_look": {"enabled": False, "key": "`", "x": 0.65, "y": 0.50},
         "bindings": [
             {"type": "stick", "x": 0.18, "y": 0.72, "radius": 0.10,
              "keys": {"up": "w", "left": "a", "down": "s", "right": "d"}},
@@ -185,6 +188,26 @@ class InputMapper:
         for i, pos in list(self._stick_active.items()):
             self.send(TOUCH_UP, i, *pos)
         self.mouse_up()
+        self.look_up()
+
+    # -- shooter / center-look camera ----------------------------------------
+    def look_down(self, x, y):
+        self._look_pos = (x, y)
+        self.send(TOUCH_DOWN, LOOK_FINGER, x, y)
+
+    def look_delta(self, dx_norm, dy_norm, center_x, center_y):
+        # Перетаскиваем палец из центра и возвращаем
+        tx = max(0.01, min(0.99, center_x + dx_norm))
+        ty = max(0.01, min(0.99, center_y + dy_norm))
+        self.send(TOUCH_MOVE, LOOK_FINGER, tx, ty)
+        # Сброс позиции в центр
+        self.send(TOUCH_UP, LOOK_FINGER, tx, ty)
+        self.send(TOUCH_DOWN, LOOK_FINGER, center_x, center_y)
+
+    def look_up(self):
+        if hasattr(self, "_look_pos") and self._look_pos:
+            self.send(TOUCH_UP, LOOK_FINGER, *self._look_pos)
+            self._look_pos = None
         self._held.clear()
         self._stick_active.clear()
         self._down_keys.clear()

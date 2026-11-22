@@ -70,9 +70,11 @@ final class VideoEncoder {
         set(kVTCompressionPropertyKey_RealTime, kCFBooleanTrue)
         set(kVTCompressionPropertyKey_ProfileLevel, kVTProfileLevel_H264_Baseline_AutoLevel)
         set(kVTCompressionPropertyKey_AllowFrameReordering, kCFBooleanFalse)
-        set(kVTCompressionPropertyKey_MaxKeyFrameIntervalDuration, 2 as CFNumber)
+        set(kVTCompressionPropertyKey_MaxFrameDelayCount, 0 as CFNumber)
+        set(kVTCompressionPropertyKey_MaxKeyFrameInterval, 60 as CFNumber)
+        set(kVTCompressionPropertyKey_MaxKeyFrameIntervalDuration, 1 as CFNumber)
         set(kVTCompressionPropertyKey_ExpectedFrameRate, 60 as CFNumber)
-        set(kVTCompressionPropertyKey_AverageBitRate, 6_000_000 as CFNumber)
+        set(kVTCompressionPropertyKey_AverageBitRate, 10_000_000 as CFNumber)
         VTCompressionSessionPrepareToEncodeFrames(session)
 
         var t: VTPixelTransferSession?
